@@ -1,6 +1,4 @@
 {
-  "buildCommand": "echo 'no build needed'",
-  "outputDirectory": ".",
   "headers": [
     {
       "source": "/api/(.*)",
@@ -15,7 +13,7 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, paypal-transmission-id, paypal-cert-id, paypal-auth-algo, paypal-transmission-sig, paypal-transmission-time"
+          "value": "Content-Type"
         }
       ]
     }
