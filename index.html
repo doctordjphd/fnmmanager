@@ -766,14 +766,23 @@
 
         // Show alert message
         function showAlert(message, type = 'success') {
+            // Remove any existing alerts first
+            const existingAlerts = document.querySelectorAll('.alert');
+            existingAlerts.forEach(alert => alert.remove());
+            
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert alert-${type}`;
             alertDiv.textContent = message;
             
-            document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.stats-grid'));
+            // Insert at the top of the container
+            const container = document.querySelector('.container');
+            const firstChild = container.firstChild;
+            container.insertBefore(alertDiv, firstChild);
             
             setTimeout(() => {
-                alertDiv.remove();
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
             }, 5000);
         }
 
