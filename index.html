@@ -784,20 +784,20 @@
             }
         });
 
-        function handleReservation() {
-            if (!selectedDate) {
-                alert('Please select a date first!');
-                return;
+            function handleReservation() {
+                if (!selectedDate) {
+                    alert('Please select a date first!');
+                    return;
+                }
+            
+                const totalAmount = seatCount * 10;
+                const itemName = `FNM Commander - ${selectedDate} - ${seatCount} Seat(s)`;
+            
+                // Use your actual Vercel URL
+                const paypalUrl = `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=njcomicstop@gmail.com&item_name=${encodeURIComponent(itemName)}&amount=${totalAmount.toFixed(2)}&currency_code=USD&return=https://doctordjphd.github.io/FNM2/success.html&cancel_return=https://doctordjphd.github.io/FNM2/&notify_url=https://v0-github-paypal-integration-h4s8xzh4l-djh269-3120s-projects.vercel.app/api/webhook`;
+            
+                window.open(paypalUrl, '_blank');
             }
-
-            const totalAmount = seatCount * 10;
-            const itemName = `FNM Commander - ${selectedDate} - ${seatCount} Seat(s)`;
-
-            // Simple PayPal URL with webhook notification - no extra prompts needed
-            const paypalUrl = `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=njcomicstop@gmail.com&item_name=${encodeURIComponent(itemName)}&amount=${totalAmount.toFixed(2)}&currency_code=USD&return=https://doctordjphd.github.io/FNM2/success.html&cancel_return=https://doctordjphd.github.io/FNM2/&notify_url=https://fnmmanager-cfgg3nswd-djh269-3120s-projects.vercel.app/api/webhook`;
-
-            window.open(paypalUrl, '_blank');
-        }
     </script>
 </body>
 </html>
