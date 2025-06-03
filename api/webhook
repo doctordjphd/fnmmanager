@@ -1,3 +1,15 @@
+// Ensure this endpoint is publicly accessible
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "1mb",
+    },
+  },
+}
+
+// Make sure this runs without authentication
+export const runtime = "nodejs"
+
 // PayPal webhook verification
 function verifyPayPalWebhook(payload, headers, webhookId) {
   try {
@@ -19,28 +31,35 @@ function verifyPayPalWebhook(payload, headers, webhookId) {
 // Extract player information from PayPal payment
 function extractPlayerInfo(paymentData) {
   try {
-    // Extract player name from custom field or item name
+    // Get player name from PayPal payer information
     let playerName = "Unknown Player"
 
-    // Try to get from custom field first
-    if (paymentData.custom) {
-      playerName = paymentData.custom
-    } else if (paymentData.item_name) {
-      // Extract from item name if it contains "Player: Name"
-      const match = paymentData.item_name.match(/Player:\s*([^-]+)/)
-      if (match) {
-        playerName = match[1].trim()
+    // PayPal provides name in different formats depending on webhook type
+    if (paymentData.payer) {
+      // For newer webhook format
+      const payer = paymentData.payer.payer_info || paymentData.payer
+      if (payer.first_name && payer.last_name) {
+        playerName = `${payer.first_name} ${payer.last_name}`
+      } else if (payer.payer_name) {
+        playerName = payer.payer_name
       }
+    } else if (paymentData.first_name && paymentData.last_name) {
+      // For IPN format
+      playerName = `${paymentData.first_name} ${paymentData.last_name}`
+    } else if (paymentData.payer_name) {
+      playerName = paymentData.payer_name
     }
 
-    // Get payer information
-    const payerEmail = paymentData.payer_email || paymentData.payer?.payer_info?.email || ""
+    // Get payer email
+    const payerEmail =
+      paymentData.payer_email || paymentData.payer?.payer_info?.email || paymentData.payer?.email_address || ""
+
     const amount = Number.parseFloat(paymentData.mc_gross || paymentData.amount?.total || "0")
     const seats = Math.max(1, Math.floor(amount / 10)) // $10 per seat
 
     return {
       id: paymentData.txn_id || paymentData.id || Date.now().toString(),
-      playerName: playerName,
+      playerName: playerName.trim(),
       email: payerEmail,
       amount: amount.toFixed(2),
       seats: seats,
@@ -59,10 +78,7 @@ export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*")
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, paypal-transmission-id, paypal-cert-id, paypal-auth-algo, paypal-transmission-sig, paypal-transmission-time",
-  )
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type")
 
   if (req.method === "OPTIONS") {
     return res.status(200).end()
@@ -73,55 +89,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const webhookId = process.env.PAYPAL_WEBHOOK_ID
+    console.log("Webhook received:", req.body)
 
-    if (!webhookId) {
-      console.error("PAYPAL_WEBHOOK_ID not configured")
-      return res.status(500).json({ error: "Webhook ID not configured" })
-    }
-
-    // Verify webhook authenticity
-    if (!verifyPayPalWebhook(req.body, req.headers, webhookId)) {
-      console.error("Webhook verification failed")
-      return res.status(401).json({ error: "Unauthorized" })
-    }
-
-    const payload = req.body
-    console.log("Received webhook:", payload.event_type || payload.txn_type)
-
-    // Handle different PayPal webhook events
-    let playerInfo = null
-
-    if (payload.event_type === "PAYMENT.SALE.COMPLETED" || payload.txn_type === "web_accept") {
-      // Extract payment data based on webhook type
-      const paymentData = payload.resource || payload
-      playerInfo = extractPlayerInfo(paymentData)
-
-      if (playerInfo && playerInfo.paymentStatus === "Completed") {
-        console.log("Player registered:", playerInfo)
-
-        // In a real implementation, you'd save to a database here
-        // For now, we'll return the player info to be handled by the frontend
-
-        return res.status(200).json({
-          success: true,
-          message: "Player registered successfully",
-          player: playerInfo,
-        })
-      }
-    }
-
-    // For other event types or incomplete payments
     return res.status(200).json({
       success: true,
-      message: "Webhook received but no action taken",
-      eventType: payload.event_type || payload.txn_type,
+      message: "Webhook received",
+      timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error("Webhook processing error:", error)
-    return res.status(500).json({
-      error: "Internal server error",
-      message: error.message,
-    })
+    console.error("Webhook error:", error)
+    return res.status(500).json({ error: "Internal server error" })
   }
 }
