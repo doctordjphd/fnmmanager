@@ -1,0 +1,135 @@
+// Simple in-memory storage for demo (in production, use a database)
+const tournamentData = {
+  players: [],
+  payments: [],
+  lastUpdated: new Date().toISOString(),
+}
+
+export default async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader("Access-Control-Allow-Origin", "*")
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type")
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end()
+  }
+
+  try {
+    switch (req.method) {
+      case "GET":
+        // Return current tournament data
+        return res.status(200).json(tournamentData)
+
+      case "POST":
+        // Add new player (from webhook or manual)
+        const { player, source = "manual" } = req.body
+
+        if (!player || !player.name) {
+          return res.status(400).json({ error: "Player name is required" })
+        }
+
+        // Check if player already exists
+        const existingPlayer = tournamentData.players.find((p) => p.name.toLowerCase() === player.name.toLowerCase())
+
+        if (existingPlayer) {
+          return res.status(409).json({ error: "Player already exists" })
+        }
+
+        // Add player
+        const newPlayer = {
+          id: Date.now(),
+          name: player.name,
+          email: player.email || "",
+          seat: tournamentData.players.length + 1,
+          pod: null,
+          addedBy: source,
+          timestamp: new Date().toISOString(),
+          paymentId: player.paymentId || null,
+        }
+
+        tournamentData.players.push(newPlayer)
+
+        // Add payment record if from PayPal
+        if (source === "paypal" && player.paymentId) {
+          tournamentData.payments.push({
+            id: player.paymentId,
+            playerName: player.name,
+            email: player.email,
+            amount: player.amount,
+            seats: player.seats || 1,
+            timestamp: player.timestamp,
+            status: "confirmed",
+          })
+        }
+
+        tournamentData.lastUpdated = new Date().toISOString()
+
+        return res.status(201).json({
+          success: true,
+          player: newPlayer,
+          totalPlayers: tournamentData.players.length,
+        })
+
+      case "DELETE":
+        // Remove player
+        const { playerId } = req.query
+
+        if (!playerId) {
+          return res.status(400).json({ error: "Player ID is required" })
+        }
+
+        const playerIndex = tournamentData.players.findIndex((p) => p.id === Number.parseInt(playerId))
+
+        if (playerIndex === -1) {
+          return res.status(404).json({ error: "Player not found" })
+        }
+
+        tournamentData.players.splice(playerIndex, 1)
+
+        // Reassign seat numbers
+        tournamentData.players.forEach((player, index) => {
+          player.seat = index + 1
+        })
+
+        tournamentData.lastUpdated = new Date().toISOString()
+
+        return res.status(200).json({
+          success: true,
+          totalPlayers: tournamentData.players.length,
+        })
+
+      case "PUT":
+        // Update tournament data (pods, etc.)
+        const { pods, players } = req.body
+
+        if (pods) {
+          // Update pod assignments
+          tournamentData.players.forEach((player) => {
+            const podPlayer = pods.find((pod) => pod.players.some((p) => p.id === player.id))
+            player.pod = podPlayer ? podPlayer.id : null
+          })
+        }
+
+        if (players) {
+          tournamentData.players = players
+        }
+
+        tournamentData.lastUpdated = new Date().toISOString()
+
+        return res.status(200).json({
+          success: true,
+          data: tournamentData,
+        })
+
+      default:
+        return res.status(405).json({ error: "Method not allowed" })
+    }
+  } catch (error) {
+    console.error("API error:", error)
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message,
+    })
+  }
+}
