@@ -1,4 +1,6 @@
 {
+  "buildCommand": "echo 'no build needed'",
+  "outputDirectory": ".",
   "headers": [
     {
       "source": "/api/(.*)",
