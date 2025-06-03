@@ -1,11 +1,11 @@
-// Simple in-memory storage for demo (in production, use a database)
-let tournamentData = {
+// Simple in-memory storage
+const tournamentData = {
   players: [],
   payments: [],
   lastUpdated: new Date().toISOString(),
 }
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*")
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -27,12 +27,6 @@ export default function handler(req, res) {
           return res.status(400).json({ error: "Player name is required" })
         }
 
-        const existingPlayer = tournamentData.players.find((p) => p.name.toLowerCase() === player.name.toLowerCase())
-
-        if (existingPlayer) {
-          return res.status(409).json({ error: "Player already exists" })
-        }
-
         const newPlayer = {
           id: Date.now(),
           name: player.name,
@@ -41,23 +35,9 @@ export default function handler(req, res) {
           pod: null,
           addedBy: source,
           timestamp: new Date().toISOString(),
-          paymentId: player.paymentId || null,
         }
 
         tournamentData.players.push(newPlayer)
-
-        if (source === "paypal" && player.paymentId) {
-          tournamentData.payments.push({
-            id: player.paymentId,
-            playerName: player.name,
-            email: player.email,
-            amount: player.amount,
-            seats: player.seats || 1,
-            timestamp: player.timestamp,
-            status: "confirmed",
-          })
-        }
-
         tournamentData.lastUpdated = new Date().toISOString()
 
         return res.status(201).json({
@@ -66,40 +46,11 @@ export default function handler(req, res) {
           totalPlayers: tournamentData.players.length,
         })
 
-      case "DELETE":
-        const { playerId } = req.query
-
-        if (!playerId) {
-          return res.status(400).json({ error: "Player ID is required" })
-        }
-
-        const playerIndex = tournamentData.players.findIndex((p) => p.id === parseInt(playerId))
-
-        if (playerIndex === -1) {
-          return res.status(404).json({ error: "Player not found" })
-        }
-
-        tournamentData.players.splice(playerIndex, 1)
-
-        tournamentData.players.forEach((player, index) => {
-          player.seat = index + 1
-        })
-
-        tournamentData.lastUpdated = new Date().toISOString()
-
-        return res.status(200).json({
-          success: true,
-          totalPlayers: tournamentData.players.length,
-        })
-
       default:
         return res.status(405).json({ error: "Method not allowed" })
     }
   } catch (error) {
     console.error("API error:", error)
-    return res.status(500).json({
-      error: "Internal server error",
-      message: error.message,
-    })
+    return res.status(500).json({ error: "Internal server error" })
   }
 }
